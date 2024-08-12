@@ -23,7 +23,7 @@
     int yylex();
 
 	  void getIdentifier(const char *id); 
-    void yyerror(const char* s);
+    void yyerror();
     
     struct tabela {
             char* simbolo;
@@ -56,11 +56,13 @@
 
 %token CHAR PRINTF SCANF FOR WHILE INT FLOAT DOUBLE STRUCT CONST IF ELSE RETURN MAIN VOID  
 %token OP_MAIS OP_MENOS OP_VEZES OP_DIV OL_AND OL_OR OL_MENOR OL_MENIG OL_MAIOR OL_MAIIG OL_IGUAL OL_DIF INCR DECR
-%token ALLOC INCLUDE NOTOP LP RP LC RC LB RB PV VIRGULA 
+%token ALLOC INCLUDE NOTOP LP RP LC RC LB RB PV VIRGULA REFER
 %token <str> IDENTIFIER
 %token <str> STRING
 %token <intNum> INT_NUM
 %token <floatNum> FLOAT_NUM
+
+%start program
 
 %%
 
@@ -68,6 +70,8 @@
 quem sabe da para utilizar o metodo do include de usar "include include", permitindo assim a repeticao */
 
 /*QUESTAO 2: vai ter que ver a questao de parametros dentro das chamadas de funcoes */
+
+
 
 program: include inicio LP RP LC estrutura RC
 ;
@@ -88,6 +92,8 @@ declaracao: declaravar
 | for_statement 
 | while_statement  
 | atribuir
+| printf_statement
+| scanf_statement
 | retorno 
 ;
 
@@ -101,8 +107,10 @@ tipagem: INT 	{ adicionaSimbTabela('K', "INT"); }
 | DOUBLE 	{ adicionaSimbTabela('K', "DOUBLE"); }
 ;
 
-valor: variaveis
+valor: variaveis VIRGULA valor
 | variaveis ALLOC constantes 
+| variaveis
+;
 
 variaveis: IDENTIFIER { /*Chamando atraves de func do lexico e tratando no sintatico*/ }
 | IDENTIFIER { /*Chamando atraves de func do lexico e tratando no sintatico*/ } array
@@ -110,6 +118,7 @@ variaveis: IDENTIFIER { /*Chamando atraves de func do lexico e tratando no sinta
 
 array: array LB INT_NUM RB 
 | LB INT_NUM RB  
+| LB IDENTIFIER RB
 ;
 
 constantes: INT_NUM { adicionaSimbTabela('C', "INT_NUM"); }
@@ -117,16 +126,21 @@ constantes: INT_NUM { adicionaSimbTabela('C', "INT_NUM"); }
 | STRING  { adicionaSimbTabela('C', "STRING"); }
 ;
 
-if_statement: IF { adicionaSimbTabela('K', "IF"); } LP expressao RP tail else_if else ;
+if_statement: IF { adicionaSimbTabela('K', "IF"); } LP expressao RP tail else ;
 
 else_if: else_if ELSE IF LP expressao RP tail 
 | ELSE IF LP expressao RP tail  
 | /* empty */
 ; 
 
-else: ELSE { adicionaSimbTabela('K', "ELSE"); }  tail 
-| /* empty */ 
+else: ELSE { adicionaSimbTabela('K', "ELSE"); }  else_opc 
+|
 ; 
+
+else_opc: tail  /*para quando eh soh um else*/
+| estrutura     /*para quando eh um else if*/
+;
+
 
 for_statement: FOR { adicionaSimbTabela('K', "FOR"); }  LP inicio_for PV expressao PV expressao RP tail 
 ;
@@ -139,8 +153,7 @@ inicio_for: variaveis ALLOC constantes
 while_statement: WHILE { adicionaSimbTabela('K', "WHILE"); }  LP expressao RP tail 
 ;
 
-tail: declaracao PV 
-| LC estrutura RC ;
+tail: LC estrutura RC;
 
 expressao: expressao operadores expressao 
 | expressao oplogicos expressao 
@@ -174,9 +187,31 @@ sinal:  OP_MENOS
 | /*positivo nao precisa de sinal*/
 ;
 
-retorno: RETURN { adicionaSimbTabela('K', "RETURN"); }  PV
-| RETURN { adicionaSimbTabela('K', "RETURN"); }  INT_NUM PV
-| RETURN { adicionaSimbTabela('K', "RETURN"); }  IDENTIFIER PV
+printf_statement: PRINTF  { adicionaSimbTabela('K', "PRINTF"); } printf_args PV
+;
+
+printf_args: LP variaveis RP  
+| LP STRING RP
+| LP STRING VIRGULA printf_params RP  
+;
+
+printf_params:  expressao 
+| expressao VIRGULA printf_params 
+;
+
+scanf_statement:  SCANF { adicionaSimbTabela('K', "SCANF"); }  LP STRING VIRGULA scanf_args RP PV 
+;
+
+scanf_args: REFER variaveis VIRGULA scanf_args  
+| REFER variaveis  
+;
+
+retorno: RETURN { adicionaSimbTabela('K', "RETURN"); } return_param PV
+;
+
+return_param: INT_NUM
+| IDENTIFIER
+| /*vazio*/
 ;
 
 /*
@@ -203,16 +238,16 @@ int main() {
   fclose(arq);
 
   printf("\n\n");
-  printf("\t\tTABELA DE SIMBOLOS \n\n");
+  printf("\tTABELA DE SIMBOLOS \n\n");
   printf("_______________________________________\n\n");
-  printf("\tSIMBOLO - TKN - TIPO_TKN - LINHA \n\n");
+  printf("SIMBOLO - TKN - TIPO_TKN - LINHA \n\n");
 
 
   tabela *tabSimb;
   tabSimb = inicio;
 
   while(tabSimb != NULL){
-    printf("%s\t%s\t%s\t%d\t\n", 
+    printf("%s - %s - %s - %d\n", 
       tabSimb->simbolo, 
       tabSimb->token, 
       tabSimb->tipoToken, 
@@ -227,8 +262,6 @@ int main() {
     free(tabelaSimbolos[i].tipoToken);
 	}*/
 	printf("\n\n");
-  
-  
   
   return 0;
 }
@@ -332,13 +365,13 @@ void getIdentifier(const char *id) {
 }
 
 
-void yyerror(const char *s)
+void yyerror()
 {
 	/* variáveis definidas no analisador léxico */
     extern int yylineno;    
     extern char *yytext;   
 
 	/* mensagem de erro exibe o símbolo que causou erro e o número da linha */
-    fprintf(stderr, " -> Erro na linha %d: %s; ** %s ** <- \n", yylineno, s, yytext);
+    fprintf(stderr, " -> Erro na linha %d; ** %s ** <- \n", yylineno, yytext);
     exit(1);
 }

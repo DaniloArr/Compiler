@@ -8,7 +8,7 @@
 int contaLinha = 1;
 
 
-void yyerror(const char *s);
+void yyerror();
 extern void getIdentifier(const char *id);
 %}
 
@@ -63,18 +63,19 @@ void	      	            { printf("VOID: [ %s ] \n ", yytext); return VOID; }
 "=="                        { printf("OL_IGUAL: [ %s ] \n ", yytext); return OL_IGUAL; }
 "!="                        { printf("OL_DIF: [ %s ] \n ", yytext); return OL_DIF; }
 "="                         { printf("ALLOC : [ %s ] \n ", yytext); return ALLOC; }
+"&"				            { printf("REFER : [ %s ] \n ", yytext); return REFER; }
 "("		                    { printf("LP: [ %s ] \n ", yytext); return LP; } 		
-")"		                    { printf("RP -> [ %s ] \n ", yytext); return RP; }		
-"{"		                    { printf("LC -> [ %s ] \n ", yytext); return LC; }		
-"}"		                    { printf("RC -> [ %s ] \n ", yytext); return RC; }		
-"["		                    { printf("LB -> [ %s ] \n ", yytext); return LB; }		
-"]"		                    { printf("RB -> [ %s ] \n ", yytext); return RB; }		
+")"		                    { printf("RP: [ %s ] \n ", yytext); return RP; }		
+"{"		                    { printf("LC: [ %s ] \n ", yytext); return LC; }		
+"}"		                    { printf("RC: [ %s ] \n ", yytext); return RC; }		
+"["		                    { printf("LB: [ %s ] \n ", yytext); return LB; }		
+"]"		                    { printf("RB: [ %s ] \n ", yytext); return RB; }		
 ","       	                { printf("VIRGULA: [ %s ] \n ", yytext); return VIRGULA; }
 {decimal}                   { yylval.floatNum = atof(yytext); printf("FLOAT_NUM: [ %s ] \n ", yytext); return FLOAT_NUM; }
 {integer}                   { yylval.intNum = atoi(yytext); printf("INT_NUM: [ %s ] \n ", yytext); return INT_NUM; }
 ";"		                    { printf("PV: [ %s ] \n ", yytext); return PV; }
 [\n]                        { contaLinha++; }
 [ \t]*                      { ; }
-.                           {  return yytext[0]; }
+.                           {  yyerror("Unrecognized character"); }
 
 %%
