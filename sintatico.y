@@ -23,7 +23,7 @@
     int yylex();
 
 	  void getIdentifier(const char *id); 
-    void yyerror();
+    void yyerror(const char *s);
     
     struct tabela {
             char* simbolo;
@@ -44,25 +44,31 @@
 
     tabela *inicio;
     tabela *final;
+
+    struct arvore* criaArvore(struct arvore *noEsq, struct arvore *noDir, char *token);
+    void printArvore(struct arvore *);
+    struct arvore *topo;
+    struct arvore {
+      struct arvore *noEsq;
+      struct arvore *noDir;
+      char *token;
+    };
+
+    
 %}
     
 
 %union{
-  int intNum;
-  float floatNum;
-  char* str; 
+      struct variaveis {
+        char nome[50];
+        struct arvore* noArv;
+      } noObj;
 }
 
 
-%token CHAR PRINTF SCANF FOR WHILE INT FLOAT DOUBLE STRUCT CONST IF ELSE RETURN MAIN VOID  
-%token OP_MAIS OP_MENOS OP_VEZES OP_DIV OL_AND OL_OR OL_MENOR OL_MENIG OL_MAIOR OL_MAIIG OL_IGUAL OL_DIF INCR DECR
-%token ALLOC INCLUDE NOTOP LP RP LC RC LB RB PV VIRGULA REFER
-%token <str> IDENTIFIER
-%token <str> STRING
-%token <intNum> INT_NUM
-%token <floatNum> FLOAT_NUM
-
-%start program
+%token <noObj> CHAR PRINTF SCANF FOR INT FLOAT DOUBLE IF ELSE RETURN MAIN VOID OP_MAIS OP_MENOS OP_VEZES OP_DIV OL_AND OL_OR OL_MENOR OL_MENIG OL_MAIOR OL_MAIIG OL_IGUAL OL_DIF INCDEC ALLOC INCLUDE NOTOP LP RP LC RC LB RB PV VIRGULA REFER IDENTIFIER STRING INT_NUM FLOAT_NUM CHARACTER 
+%type  <noObj> program include inicio estrutura tipagem declaracao valor variaveis array constantes expressao receive_value declaravar if_statement else else_opc for_statement inicio_for atribuir printf_statement scanf_statement retorno tail operadores op_logicos sinal printf_args printf_params scanf_args return_param functions function function_head param_func parameters chama_func types_param
+%start program 
 
 %%
 
@@ -72,32 +78,58 @@ quem sabe da para utilizar o metodo do include de usar "include include", permit
 /*QUESTAO 2: vai ter que ver a questao de parametros dentro das chamadas de funcoes */
 
 
-
-program: include inicio LP RP LC estrutura RC
+/*da para tentar colocar mais um function_opt antes do inicio e só rearranjar no ramo1 criaArvore(1°func, 2°func, "function");*/
+program: include inicio LP RP LC estrutura RC functions {
+    struct arvore *ramo1 = criaArvore(NULL, $8.noArv, "function");
+    struct arvore *ramo2 = criaArvore($6.noArv, ramo1, "main");
+    $2.noArv = ramo2;
+    $$.noArv = criaArvore($1.noArv, $2.noArv, "program");
+    topo = $$.noArv;
+  }
 ;
 
-include: include include
-| INCLUDE { adicionaSimbTabela('I', "INCLUDE"); }
+include: include include { $$.noArv = criaArvore($1.noArv, $2.noArv, "INCLUDES"); }
+| INCLUDE { adicionaSimbTabela('I', "INCLUDE"); } { $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 ;
 
 inicio: tipagem MAIN { adicionaSimbTabela('F', "MAIN"); }
+| tipagem IDENTIFIER { adicionaSimbTabela('F', "FUNCTION"); }
 ;
 
-estrutura: estrutura declaracao 
-| declaracao
+functions: function function  { $$.noArv = criaArvore($1.noArv, $2.noArv, "+1FUNC"); }
+| function { $$.noArv = $1.noArv; }
+| { $$.noArv = NULL; }
 ;
 
-declaracao: declaravar
-| if_statement 
-| for_statement 
-| while_statement  
-| atribuir
-| printf_statement
-| scanf_statement
-| retorno 
+function: function_head tail { $$.noArv = criaArvore($2.noArv, NULL, "bloco_func"); }
 ;
 
-declaravar: tipagem valor PV
+function_head: inicio LP param_func RP
+;
+
+param_func: parameters { $$.noArv = $1.noArv; }
+| { $$.noArv = NULL; }
+;
+
+parameters: tipagem IDENTIFIER VIRGULA parameters 
+| tipagem IDENTIFIER 
+;
+
+estrutura: declaracao  { $$.noArv = $1.noArv; }
+| declaracao estrutura { $$.noArv = criaArvore($1.noArv, $2.noArv, "estrutura"); }
+;
+
+declaracao: declaravar  { $$.noArv = $1.noArv; }
+| chama_func            { $$.noArv = $1.noArv; } 
+| if_statement          { $$.noArv = $1.noArv; } 
+| for_statement         { $$.noArv = $1.noArv; }
+| atribuir              { $$.noArv = $1.noArv; }
+| printf_statement      { $$.noArv = $1.noArv; }
+| scanf_statement       { $$.noArv = $1.noArv; }
+| retorno               { $$.noArv = $1.noArv; }
+;
+
+declaravar: tipagem valor PV { $$.noArv = $2.noArv; }
 ;
 
 tipagem: INT 	{ adicionaSimbTabela('K', "INT"); }
@@ -107,13 +139,14 @@ tipagem: INT 	{ adicionaSimbTabela('K', "INT"); }
 | DOUBLE 	{ adicionaSimbTabela('K', "DOUBLE"); }
 ;
 
-valor: variaveis VIRGULA valor
-| variaveis ALLOC constantes 
-| variaveis
+valor: variaveis VIRGULA valor  { $$.noArv = criaArvore($1.noArv, $3.noArv, ""); }
+| variaveis ALLOC constantes    { $$.noArv = criaArvore($1.noArv, $3.noArv, $2.nome); }
+| variaveis ALLOC variaveis     { $$.noArv = criaArvore($1.noArv, $3.noArv, $2.nome); }
+| variaveis { $$.noArv = $1.noArv; }
 ;
 
-variaveis: IDENTIFIER { /*Chamando atraves de func do lexico e tratando no sintatico*/ }
-| IDENTIFIER { /*Chamando atraves de func do lexico e tratando no sintatico*/ } array
+variaveis: IDENTIFIER { $$.noArv = criaArvore(NULL, NULL, $1.nome); }
+| IDENTIFIER  array   { $$.noArv = criaArvore(NULL, NULL, $1.nome);  }
 ;
 
 array: array LB INT_NUM RB 
@@ -121,48 +154,46 @@ array: array LB INT_NUM RB
 | LB IDENTIFIER RB
 ;
 
-constantes: INT_NUM { adicionaSimbTabela('C', "INT_NUM"); }
-| FLOAT_NUM { adicionaSimbTabela('C', "FLOAT_NUM"); }
-| STRING  { adicionaSimbTabela('C', "STRING"); }
+constantes: INT_NUM { adicionaSimbTabela('C', "INT_NUM");   $$.noArv = criaArvore(NULL, NULL, $1.nome); }
+| FLOAT_NUM         { adicionaSimbTabela('C', "FLOAT_NUM"); $$.noArv = criaArvore(NULL, NULL, $1.nome); }
+| STRING            { adicionaSimbTabela('C', "STRING");    $$.noArv = criaArvore(NULL, NULL, $1.nome); }
+| CHARACTER         { adicionaSimbTabela('C', "CHARACTER"); $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 ;
 
-if_statement: IF { adicionaSimbTabela('K', "IF"); } LP expressao RP tail else ;
+if_statement: IF { adicionaSimbTabela('K', "IF"); } LP expressao RP tail else {
+    struct arvore *iff = criaArvore($4.noArv, $6.noArv, $1.nome);
+    $$.noArv = criaArvore(iff, $7.noArv, "ifelse");
+  };
 
-else_if: else_if ELSE IF LP expressao RP tail 
-| ELSE IF LP expressao RP tail  
-| /* empty */
+else: ELSE { adicionaSimbTabela('K', "ELSE"); }  else_opc { $$.noArv = criaArvore(NULL, $3.noArv, $1.nome); }
+| /*sem else*/ { $$.noArv = NULL; }
 ; 
 
-else: ELSE { adicionaSimbTabela('K', "ELSE"); }  else_opc 
-|
-; 
-
-else_opc: tail  /*para quando eh soh um else*/
-| estrutura     /*para quando eh um else if*/
+else_opc: tail { $$.noArv = $1.noArv; } /*para quando eh soh um else*/
+| estrutura    { $$.noArv = $1.noArv; } /*para quando eh um else if*/
 ;
 
-
-for_statement: FOR { adicionaSimbTabela('K', "FOR"); }  LP inicio_for PV expressao PV expressao RP tail 
+for_statement: FOR { adicionaSimbTabela('K', "FOR"); }  LP inicio_for PV expressao PV expressao RP tail {
+    struct arvore *cond1 = criaArvore($6.noArv, $8.noArv, "COND 2");
+    struct arvore *cond2 = criaArvore($4.noArv, cond1, "COND 1");
+    $$.noArv = criaArvore(cond2, $10.noArv, $1.nome);
+  }
 ;
 
-inicio_for: variaveis ALLOC constantes
-| tipagem variaveis ALLOC constantes
+inicio_for: variaveis ALLOC constantes  { $$.noArv = criaArvore($1.noArv, $3.noArv, "="); }
+| tipagem variaveis ALLOC constantes    { $$.noArv = criaArvore($1.noArv, $3.noArv, "="); }
 ;
 
-
-while_statement: WHILE { adicionaSimbTabela('K', "WHILE"); }  LP expressao RP tail 
+tail: LC estrutura RC { $$.noArv = $2.noArv; }
 ;
 
-tail: LC estrutura RC;
-
-expressao: expressao operadores expressao 
-| expressao oplogicos expressao 
-| expressao INCR
-| expressao DECR
-| NOTOP expressao 
-| LP expressao RP 
-| variaveis
-| sinal constantes
+expressao: expressao operadores expressao { $$.noArv = criaArvore($1.noArv, $3.noArv, $2.nome); }
+| expressao op_logicos expressao          { $$.noArv = criaArvore($1.noArv, $3.noArv, $2.nome); }
+| expressao INCDEC      { $2.noArv = criaArvore(NULL, NULL, $2.nome); $$.noArv = criaArvore($1.noArv, $2.noArv, "INCDEC"); }
+| NOTOP expressao       { $1.noArv = criaArvore(NULL, NULL, $1.nome); $$.noArv = criaArvore($1.noArv, $2.noArv, "DIFF"); }
+| variaveis             { $$.noArv = $1.noArv; }
+| sinal constantes      { $$.noArv = criaArvore($1.noArv, $2.noArv, "valor"); }
+| chama_func            { $$.noArv = $1.noArv; }
 ;
 
 operadores: OP_MAIS
@@ -171,7 +202,7 @@ operadores: OP_MAIS
 | OP_DIV
 ;
 
-oplogicos: OL_OR
+op_logicos: OL_OR
 | OL_AND
 | OL_IGUAL
 | OL_DIF
@@ -181,13 +212,21 @@ oplogicos: OL_OR
 | OL_MAIIG
 ;
 
-atribuir: variaveis ALLOC expressao PV; 
+atribuir: variaveis ALLOC receive_value {
+    $1.noArv = criaArvore(NULL, NULL, $1.nome);
+    $$.noArv = criaArvore($1.noArv, $3.noArv, $2.nome);
+  }
+; 
 
-sinal:  OP_MENOS
-| /*positivo nao precisa de sinal*/
+receive_value: expressao PV { $$.noArv = $1.noArv; }
+| chama_func { $$.noArv = $1.noArv; }
 ;
 
-printf_statement: PRINTF  { adicionaSimbTabela('K', "PRINTF"); } printf_args PV
+sinal:  OP_MENOS { $$.noArv = criaArvore(NULL, NULL, "-"); }
+| { $$.noArv = NULL; } 
+;
+
+printf_statement: PRINTF { adicionaSimbTabela('K', "PRINTF"); } printf_args PV { $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 ;
 
 printf_args: LP variaveis RP  
@@ -199,25 +238,32 @@ printf_params:  expressao
 | expressao VIRGULA printf_params 
 ;
 
-scanf_statement:  SCANF { adicionaSimbTabela('K', "SCANF"); }  LP STRING VIRGULA scanf_args RP PV 
+scanf_statement:  SCANF { adicionaSimbTabela('K', "SCANF"); }  LP STRING VIRGULA scanf_args RP PV { $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 ;
 
 scanf_args: REFER variaveis VIRGULA scanf_args  
 | REFER variaveis  
 ;
 
-retorno: RETURN { adicionaSimbTabela('K', "RETURN"); } return_param PV
+retorno: RETURN { adicionaSimbTabela('K', "RETURN"); } return_param PV { $1.noArv = criaArvore(NULL, NULL, $1.nome); $$.noArv = criaArvore($1.noArv, $3.noArv, "RETURN"); }
 ;
 
-return_param: INT_NUM
-| IDENTIFIER
-| /*vazio*/
+return_param: INT_NUM {  $$.noArv = criaArvore(NULL, NULL, $1.nome);  }
+| IDENTIFIER  {  $$.noArv = criaArvore(NULL, NULL, $1.nome);  }
+| /*vazio*/   {  $$.noArv = NULL;  }
 ;
 
-/*
-  FALTA VER A REGRA DO PRINTF E DO SCANF
-  FALTA FAZER A TABELA DE SIMB e TREE
-*/
+chama_func: IDENTIFIER LP types_param RP PV { 
+    $1.noArv = criaArvore(NULL, NULL, $1.nome); 
+    $$.noArv = criaArvore($1.noArv, $3.noArv, "call_func"); 
+  }
+;
+
+types_param: IDENTIFIER { $$.noArv = criaArvore(NULL, NULL, $1.nome); }
+| STRING                { $$.noArv = criaArvore(NULL, NULL, $1.nome); }
+| CHARACTER             { $$.noArv = criaArvore(NULL, NULL, $1.nome); }
+|                       { $$.noArv = NULL; }
+;
 
 
 %%
@@ -262,6 +308,11 @@ int main() {
     free(tabelaSimbolos[i].tipoToken);
 	}*/
 	printf("\n\n");
+  printf("_______________________________________\n\n");
+  printf("IMPRIMINDO ARVORE \n\n");
+  printArvore(topo);
+  
+  printf("\n\n");
   
   return 0;
 }
@@ -365,13 +416,38 @@ void getIdentifier(const char *id) {
 }
 
 
-void yyerror()
-{
-	/* variáveis definidas no analisador léxico */
-    extern int yylineno;    
-    extern char *yytext;   
+struct arvore* criaArvore(struct arvore *noEsq, struct arvore *noDir, char *token) {
+  struct arvore *novoNoh = (struct arvore*) malloc(sizeof(struct arvore));
+  char *strToken = (char*) malloc(strlen(token) + 1);
+  strcpy(strToken, token);
 
-	/* mensagem de erro exibe o símbolo que causou erro e o número da linha */
+  novoNoh->noEsq = noEsq;
+  novoNoh->noDir = noDir;
+  novoNoh->token = strToken;
+
+  return(novoNoh);
+}
+
+void printArvore(struct arvore *arv){
+  if (arv->noEsq) {
+		printArvore(arv->noEsq);
+	}
+	printf("%s, ", arv->token);
+	if (arv->noDir) {
+		printArvore(arv->noDir);
+	}
+}
+
+/*fazer um código semantico para verificar se a variavel foi inicia */
+/*fazer um código semantico para verificar se o valor que ela tá recebendo é do mesmo tipo*/
+
+
+
+void yyerror(const char *s)
+{
+    extern int yylineno;    // Linha atual do código sendo analisado
+    extern char *yytext;    // Último token lido pelo analisador léxico
+
     fprintf(stderr, " -> Erro na linha %d; ** %s ** <- \n", yylineno, yytext);
     exit(1);
 }

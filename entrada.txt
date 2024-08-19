@@ -1,0 +1,26 @@
+#include<stdio.h>
+int main(){
+	int tamanhoArray, valorSoma, i, k, lista[tamanhoArray];
+	float numero = 15;
+
+	printf("Digite o tamanho do array: ");
+	scanf("%d", &tamanhoArray);
+
+	for(i = 0; i < tamanhoArray; i++){
+		k = i * 2; 
+		if(k >= tamanhoArray){
+			valorSoma = soma(k);
+		} else {
+			valorSoma = soma(i);
+		}
+		
+		lista[i] = valorSoma;
+		printf("%d", lista[i]);
+	}
+}
+
+int soma(int num){
+	int resultado;
+	resultado = num + 3;
+	return resultado;
+}
