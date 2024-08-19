@@ -1,4 +1,7 @@
 #include<stdio.h>
+
+int soma(int);
+
 int main(){
 	int tamanhoArray, valorSoma, i, k, lista[tamanhoArray];
 	float numero = 15;

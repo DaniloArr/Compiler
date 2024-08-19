@@ -15,15 +15,25 @@
 
     int buscaSimbRepetido(char *);
     void adicionaSimbTabela(char, const char *); 
+    void getIdentifier(const char *id); 
+    void salvaTipagemVar();
+    
+    void verificaVarDeclarada(char *);
+    char getTipagem(char *);
+    int countErroSemantico = 0;
+    char errors[10][100];
+    char arrayPalavrasReservadas[15][15] = {"int", "float", "char", "void", "if", "else", "for", "while", "main", "return", "include", "printf", "scanf"};
 
+    void yyerror(const char *s);
+
+
+    char tipo[10];
     extern int contaLinha;
     int count = 0;
     int f;
     
     int yylex();
 
-	  void getIdentifier(const char *id); 
-    void yyerror(const char *s);
     
     struct tabela {
             char* simbolo;
@@ -36,6 +46,7 @@
             CONST    -> qualquer letra, numero ou palavra
             FUNCAO   -> palavras reservadas para nomear funcoes especificas
             */
+            char* tipagem;
             int linha;
             struct tabela *next;
     };
@@ -47,7 +58,9 @@
 
     struct arvore* criaArvore(struct arvore *noEsq, struct arvore *noDir, char *token);
     void printArvore(struct arvore *);
+
     struct arvore *topo;
+
     struct arvore {
       struct arvore *noEsq;
       struct arvore *noDir;
@@ -67,7 +80,7 @@
 
 
 %token <noObj> CHAR PRINTF SCANF FOR INT FLOAT DOUBLE IF ELSE RETURN MAIN VOID OP_MAIS OP_MENOS OP_VEZES OP_DIV OL_AND OL_OR OL_MENOR OL_MENIG OL_MAIOR OL_MAIIG OL_IGUAL OL_DIF INCDEC ALLOC INCLUDE NOTOP LP RP LC RC LB RB PV VIRGULA REFER IDENTIFIER STRING INT_NUM FLOAT_NUM CHARACTER 
-%type  <noObj> program include inicio estrutura tipagem declaracao valor variaveis array constantes expressao receive_value declaravar if_statement else else_opc for_statement inicio_for atribuir printf_statement scanf_statement retorno tail operadores op_logicos sinal printf_args printf_params scanf_args return_param functions function function_head param_func parameters chama_func types_param
+%type  <noObj> program include inicio estrutura tipagem declaracao valor variaveis array constantes expressao receive_value declaravar if_statement else else_opc for_statement inicio_for atribuir printf_statement scanf_statement retorno tail operadores op_logicos sinal printf_args printf_params scanf_args return_param functions function function_head param_func parameters chama_func types_param inic_func declara_func
 %start program 
 
 %%
@@ -79,11 +92,11 @@ quem sabe da para utilizar o metodo do include de usar "include include", permit
 
 
 /*da para tentar colocar mais um function_opt antes do inicio e só rearranjar no ramo1 criaArvore(1°func, 2°func, "function");*/
-program: include inicio LP RP LC estrutura RC functions {
-    struct arvore *ramo1 = criaArvore(NULL, $8.noArv, "function");
-    struct arvore *ramo2 = criaArvore($6.noArv, ramo1, "main");
-    $2.noArv = ramo2;
-    $$.noArv = criaArvore($1.noArv, $2.noArv, "program");
+program: include inic_func inicio LP RP LC estrutura RC functions {
+    struct arvore *ramo1 = criaArvore($2.noArv, $9.noArv, "function");
+    struct arvore *ramo2 = criaArvore($7.noArv, ramo1, "main");
+    $3.noArv = ramo2;
+    $$.noArv = criaArvore($1.noArv, $3.noArv, "program");
     topo = $$.noArv;
   }
 ;
@@ -92,8 +105,26 @@ include: include include { $$.noArv = criaArvore($1.noArv, $2.noArv, "INCLUDES")
 | INCLUDE { adicionaSimbTabela('I', "INCLUDE"); } { $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 ;
 
+inic_func: declara_func { $$.noArv = $1.noArv; }
+| { $$.noArv = NULL; }
+;
+
+declara_func: tipagem IDENTIFIER { adicionaSimbTabela('F', "FUNCTION"); } LP types_func RP PV { 
+    $2.noArv = criaArvore(NULL, NULL, $2.nome); 
+    $$.noArv = criaArvore($2.noArv , NULL, "declara_func"); 
+  }
+;
+
+types_func: type_func 
+| 
+;
+
+type_func: tipagem VIRGULA type_func
+| tipagem
+;
+
 inicio: tipagem MAIN { adicionaSimbTabela('F', "MAIN"); }
-| tipagem IDENTIFIER { adicionaSimbTabela('F', "FUNCTION"); }
+| tipagem IDENTIFIER { adicionaSimbTabela('F', "FUNCTION"); } { $$.noArv = criaArvore(NULL, NULL, $2.nome); }
 ;
 
 functions: function function  { $$.noArv = criaArvore($1.noArv, $2.noArv, "+1FUNC"); }
@@ -101,10 +132,10 @@ functions: function function  { $$.noArv = criaArvore($1.noArv, $2.noArv, "+1FUN
 | { $$.noArv = NULL; }
 ;
 
-function: function_head tail { $$.noArv = criaArvore($2.noArv, NULL, "bloco_func"); }
+function: function_head tail { $$.noArv = criaArvore($1.noArv, $2.noArv, "bloco_func"); }
 ;
 
-function_head: inicio LP param_func RP
+function_head: inicio LP param_func RP { $$.noArv = $1.noArv; }
 ;
 
 param_func: parameters { $$.noArv = $1.noArv; }
@@ -132,11 +163,11 @@ declaracao: declaravar  { $$.noArv = $1.noArv; }
 declaravar: tipagem valor PV { $$.noArv = $2.noArv; }
 ;
 
-tipagem: INT 	{ adicionaSimbTabela('K', "INT"); }
-| FLOAT 	{ adicionaSimbTabela('K', "FLOAT"); }
-| CHAR 		{ adicionaSimbTabela('K', "CHAR"); }
-| VOID 		{ adicionaSimbTabela('K', "VOID"); }
-| DOUBLE 	{ adicionaSimbTabela('K', "DOUBLE"); }
+tipagem: INT 	{ salvaTipagemVar(); adicionaSimbTabela('K', "INT"); }
+| FLOAT 	{ salvaTipagemVar(); adicionaSimbTabela('K', "FLOAT"); }
+| CHAR 		{ salvaTipagemVar(); adicionaSimbTabela('K', "CHAR"); }
+| VOID 		{ salvaTipagemVar(); adicionaSimbTabela('K', "VOID"); }
+| DOUBLE 	{ salvaTipagemVar(); adicionaSimbTabela('K', "DOUBLE"); }
 ;
 
 valor: variaveis VIRGULA valor  { $$.noArv = criaArvore($1.noArv, $3.noArv, ""); }
@@ -145,13 +176,13 @@ valor: variaveis VIRGULA valor  { $$.noArv = criaArvore($1.noArv, $3.noArv, "");
 | variaveis { $$.noArv = $1.noArv; }
 ;
 
-variaveis: IDENTIFIER { $$.noArv = criaArvore(NULL, NULL, $1.nome); }
-| IDENTIFIER  array   { $$.noArv = criaArvore(NULL, NULL, $1.nome);  }
+variaveis: IDENTIFIER { getIdentifier($1.nome); $$.noArv = criaArvore(NULL, NULL, $1.nome); }
+| IDENTIFIER  array   { getIdentifier($1.nome); $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 ;
 
 array: array LB INT_NUM RB 
 | LB INT_NUM RB  
-| LB IDENTIFIER RB
+| LB IDENTIFIER RB  { verificaVarDeclarada($2.nome);} 
 ;
 
 constantes: INT_NUM { adicionaSimbTabela('C', "INT_NUM");   $$.noArv = criaArvore(NULL, NULL, $1.nome); }
@@ -192,7 +223,7 @@ expressao: expressao operadores expressao { $$.noArv = criaArvore($1.noArv, $3.n
 | expressao INCDEC      { $2.noArv = criaArvore(NULL, NULL, $2.nome); $$.noArv = criaArvore($1.noArv, $2.noArv, "INCDEC"); }
 | NOTOP expressao       { $1.noArv = criaArvore(NULL, NULL, $1.nome); $$.noArv = criaArvore($1.noArv, $2.noArv, "DIFF"); }
 | variaveis             { $$.noArv = $1.noArv; }
-| sinal constantes      { $$.noArv = criaArvore($1.noArv, $2.noArv, "valor"); }
+| sinal constantes      { $$.noArv = criaArvore($1.noArv, $2.noArv, "sinal"); }
 | chama_func            { $$.noArv = $1.noArv; }
 ;
 
@@ -249,17 +280,17 @@ retorno: RETURN { adicionaSimbTabela('K', "RETURN"); } return_param PV { $1.noAr
 ;
 
 return_param: INT_NUM {  $$.noArv = criaArvore(NULL, NULL, $1.nome);  }
-| IDENTIFIER  {  $$.noArv = criaArvore(NULL, NULL, $1.nome);  }
+| IDENTIFIER  {  $$.noArv = criaArvore(NULL, NULL, $1.nome); verificaVarDeclarada($1.nome); }
 | /*vazio*/   {  $$.noArv = NULL;  }
 ;
 
-chama_func: IDENTIFIER LP types_param RP PV { 
+chama_func: IDENTIFIER { verificaVarDeclarada($1.nome); } LP types_param RP PV { 
     $1.noArv = criaArvore(NULL, NULL, $1.nome); 
-    $$.noArv = criaArvore($1.noArv, $3.noArv, "call_func"); 
+    $$.noArv = criaArvore($1.noArv, $4.noArv, "call_func"); 
   }
 ;
 
-types_param: IDENTIFIER { $$.noArv = criaArvore(NULL, NULL, $1.nome); }
+types_param: IDENTIFIER { $$.noArv = criaArvore(NULL, NULL, $1.nome); verificaVarDeclarada($1.nome); }
 | STRING                { $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 | CHARACTER             { $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 |                       { $$.noArv = NULL; }
@@ -286,17 +317,18 @@ int main() {
   printf("\n\n");
   printf("\tTABELA DE SIMBOLOS \n\n");
   printf("_______________________________________\n\n");
-  printf("SIMBOLO - TKN - TIPO_TKN - LINHA \n\n");
+  printf("SIMBOLO - TKN - TIPO_TKN - TIPAGEM - LINHA \n\n");
 
 
   tabela *tabSimb;
   tabSimb = inicio;
 
   while(tabSimb != NULL){
-    printf("%s - %s - %s - %d\n", 
+    printf("%s - %s - %s - %s - %d\n", 
       tabSimb->simbolo, 
       tabSimb->token, 
       tabSimb->tipoToken, 
+      tabSimb->tipagem,
       tabSimb->linha
     );
     tabSimb = tabSimb->next;
@@ -311,9 +343,22 @@ int main() {
   printf("_______________________________________\n\n");
   printf("IMPRIMINDO ARVORE \n\n");
   printArvore(topo);
-  
   printf("\n\n");
-  
+
+  printf("\n\n");
+  printf("_______________________________________\n\n");
+  printf("VERIFICANDO SEMANTICA \n\n");
+
+  if(countErroSemantico > 0) {
+		printf("Foram encontrados %d erros\n", countErroSemantico);
+		for(int i = 0; i < countErroSemantico; i++){
+			printf("\t - %s", errors[i]);
+		}
+	} else {
+		printf("NENHUM ERRO NA ANALISE SEMANTICA - DEUS EH BOM ");
+	}
+
+  printf("\n\n");
   return 0;
 }
 
@@ -340,7 +385,7 @@ void adicionaSimbTabela(char tipoTkn, const char *tkn) {
   tabSimb->simbolo = malloc(strlen(yytext) + 1);
   tabSimb->token = malloc(strlen(tkn) + 1);
   tabSimb->tipoToken = malloc(8);
-
+  tabSimb->tipagem = malloc(11);
   if(inicio == NULL){
     inicio = tabSimb;
     final = tabSimb;
@@ -351,23 +396,29 @@ void adicionaSimbTabela(char tipoTkn, const char *tkn) {
   if(simboloRepetido == 0) {
     strcpy(tabSimb->simbolo, yytext);
     strcpy(tabSimb->token, tkn);
+    
     tabSimb->linha = contaLinha;
 
     switch(tipoTkn) {
         case 'I':
             strcpy(tabSimb->tipoToken, "Include");
+            strcpy(tabSimb->tipagem, "N/A");
             break;
         case 'K':
             strcpy(tabSimb->tipoToken, "Keyword");
+            strcpy(tabSimb->tipagem, "N/A");
             break;
         case 'V':
             strcpy(tabSimb->tipoToken, "Variavel");
+            strcpy(tabSimb->tipagem, tipo);
             break;
         case 'C':
             strcpy(tabSimb->tipoToken, "Const");
+            strcpy(tabSimb->tipagem, tipo);
             break;
         case 'F':
             strcpy(tabSimb->tipoToken, "Funcao");
+            strcpy(tabSimb->tipagem, tipo);
             break;
     }
 
@@ -394,6 +445,8 @@ void getIdentifier(const char *id) {
   tabSimb->token = malloc(11);
   //Variavel
   tabSimb->tipoToken = malloc(9);
+  //tipagem
+  tabSimb->tipagem = malloc(11);
 
   if(inicio == NULL){
     inicio = tabSimb;
@@ -406,6 +459,7 @@ void getIdentifier(const char *id) {
     strcpy(tabSimb->simbolo, id);
     strcpy(tabSimb->token, "IDENTIFIER");
     strcpy(tabSimb->tipoToken, "Variavel");
+    strcpy(tabSimb->tipagem, tipo);
     tabSimb->linha = contaLinha;
 
     if(final != tabSimb){
@@ -436,6 +490,32 @@ void printArvore(struct arvore *arv){
 	if (arv->noDir) {
 		printArvore(arv->noDir);
 	}
+}
+
+
+void salvaTipagemVar() {
+	strcpy(tipo, yytext);
+}
+
+/*FUNCTIONS SEMANTICAS*/
+
+void verificaVarDeclarada(char *id){
+  printf("\nTA ENTRANDO AQUI COM %s \n", id);
+  int varDeclarada = 0;
+  extern int yylineno; 
+  tabela *tabSimb;
+  tabSimb = (tabela *) malloc(sizeof(tabela)); 
+
+  if(inicio == NULL){
+    inicio = tabSimb;
+    final = tabSimb;
+  } else {
+    varDeclarada = buscaSimbRepetido(id);    
+  }
+  if(varDeclarada == 0) {        
+      sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" nao declarada \n", yylineno, id);  
+      countErroSemantico++;    
+  }
 }
 
 /*fazer um código semantico para verificar se a variavel foi inicia */

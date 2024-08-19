@@ -46,7 +46,7 @@ void	      	            { strcpy(yylval.noObj.nome,(yytext)); printf("VOID: [ %s
 {tk_include}	            { strcpy(yylval.noObj.nome,(yytext)); printf("INCLUDE: [ %s ] \n ", yytext); return INCLUDE; }
 {string}                    { strcpy(yylval.noObj.nome,(yytext)); printf("STRING: [ %s ] \n ", yytext); return STRING; }
 {character}                 { strcpy(yylval.noObj.nome,(yytext)); printf("CHARACTER: [ %s ] \n ", yytext); return CHARACTER; } 
-{letra}({letra}|{digito})*  { getIdentifier(yytext); strcpy(yylval.noObj.nome,(yytext)); printf("IDENTIFIER: [ %s ] \n ", yytext); return IDENTIFIER; }
+{letra}({letra}|{digito})*  { strcpy(yylval.noObj.nome,(yytext)); printf("IDENTIFIER: [ %s ] \n ", yytext); return IDENTIFIER; }
 "+"                         { strcpy(yylval.noObj.nome,(yytext)); printf("OP_MAIS: [ %s ] \n ", yytext); return OP_MAIS; }
 "-"                         { strcpy(yylval.noObj.nome,(yytext)); printf("OP_MENOS: [ %s ] \n ", yytext); return OP_MENOS; }
 "*"                         { strcpy(yylval.noObj.nome,(yytext)); printf("OP_VEZES: [ %s ] \n ", yytext); return OP_VEZES; }
