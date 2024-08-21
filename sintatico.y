@@ -24,7 +24,9 @@
     void multiplaDeclaracao(char *);
     char *getTipagem(char *);
     int countErroSemantico = 0;
+    int countWarningSemantico = 0;
     char errors[10][100];
+    char warnings[10][100];
     char arrayPalavrasReservadas[15][15] = {"int", "float", "char", "void", "if", "else", "for", "while", "main", "return", "include", "printf", "scanf"};
 
     void yyerror(const char *s);
@@ -83,13 +85,14 @@
       struct variaveis1 {
         char nome[50];
         struct arvore* noArv;
-        char tipagem[10];
+        char typeVar[10];
       } noObj1;
 }
 
 
 %token <noObj> CHAR PRINTF SCANF FOR INT FLOAT DOUBLE IF ELSE RETURN MAIN VOID OP_MAIS OP_MENOS OP_VEZES OP_DIV OL_AND OL_OR OL_MENOR OL_MENIG OL_MAIOR OL_MAIIG OL_IGUAL OL_DIF INCDEC ALLOC INCLUDE NOTOP LP RP LC RC LB RB PV VIRGULA REFER IDENTIFIER STRING INT_NUM FLOAT_NUM CHARACTER 
-%type  <noObj> program include inicio estrutura tipagem declaracao valor variaveis var_aux array constantes expressao receive_value declaravar if_statement else else_opc for_statement inicio_for atribuir printf_statement scanf_statement retorno tail operadores op_logicos sinal printf_args printf_params scanf_args return_param functions function function_head parameters chama_func types_param declara_func
+%type  <noObj> program include inicio estrutura tipagem declaracao valor variaveis var_aux array constantes expressao declaravar if_statement else else_opc for_statement inicio_for atribuir printf_statement scanf_statement retorno tail operadores op_logicos printf_args printf_params scanf_args return_param functions function function_head parameters chama_func types_param declara_func
+%type  <noObj1> receive_value
 %start program 
 
 %%
@@ -171,6 +174,16 @@ declaravar: tipagem variaveis valor PV {
 }
 ;
 
+/*declaravar: tipagem sem_mult_type  { multTipagem(); } PV
+| tipagem valor PV { $$.noArv = $2.noArv; }
+;
+
+sem_mult_type: tipagem VIRGULA sem_mult_type 
+| tipagem sem_mult_type
+| tipagem
+;
+*/
+
 tipagem: INT 	{ salvaTipagemVar(); adicionaSimbTabela('K', "INT"); }
 | FLOAT 	{ salvaTipagemVar(); adicionaSimbTabela('K', "FLOAT"); }
 | CHAR 		{ salvaTipagemVar(); adicionaSimbTabela('K', "CHAR"); }
@@ -249,7 +262,7 @@ expressao: expressao operadores expressao { $$.noArv = criaArvore($1.noArv, $3.n
 | expressao INCDEC      { $2.noArv = criaArvore(NULL, NULL, $2.nome); $$.noArv = criaArvore($1.noArv, $2.noArv, "INCDEC"); }
 | NOTOP expressao       { $1.noArv = criaArvore(NULL, NULL, $1.nome); $$.noArv = criaArvore($1.noArv, $2.noArv, "DIFF"); }
 | var_aux               { $$.noArv = $1.noArv; }
-| sinal constantes      { $$.noArv = criaArvore($1.noArv, $2.noArv, "sinal"); }
+| constantes            { $$.noArv = $1.noArv; }
 | chama_func            { $$.noArv = $1.noArv; }
 ;
 
@@ -271,20 +284,65 @@ op_logicos: OL_OR
 
 atribuir: IDENTIFIER array { verificaVarDeclarada($1.nome); } ALLOC receive_value {
     $1.noArv = criaArvore(NULL, NULL, $1.nome);
-    $$.noArv = criaArvore($1.noArv, $5.noArv, $4.nome);  
+    char *typeIdent = getTipagem($1.nome);
+    if(strcmp(typeIdent,$5.typeVar) == 0){
+      $$.noArv = criaArvore($1.noArv, $5.noArv, $4.nome);
+    } 
+    
   }
 | IDENTIFIER { verificaVarDeclarada($1.nome); } ALLOC receive_value {
     $1.noArv = criaArvore(NULL, NULL, $1.nome);
-    $$.noArv = criaArvore($1.noArv, $4.noArv, $3.nome);
+    char *typeIdent = getTipagem($1.nome);
+    int numInteiro;
+    float numDecimal;
+
+     if(strcmp(typeIdent,$4.typeVar) == 0){
+      $$.noArv = criaArvore($1.noArv, $4.noArv, $3.nome);
+    } else {
+      if(strcmp(typeIdent, "int") == 0){
+        if(strcmp($4.typeVar, "string")){
+          //numDecimal = strtod($4.noArv,NULL);
+          //numInteiro = (int) numDecimal; contaLinha
+          sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" do tipo \'int\' incompativel com o tipo \'char*\'. \n", contaLinha, $1.nome);
+          countErroSemantico++;
+        } else {
+          struct arvore *ramo = criaArvore(NULL, $4.noArv, "parseInt");
+          $$.noArv = criaArvore($1.noArv, ramo, $3.nome);
+        }
+      } else if(strcmp(typeIdent, "float") == 0){
+        if(strcmp($4.typeVar, "string")){
+          sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" do tipo \'float\' incompativel com o tipo \'char*\'. \n", contaLinha, $1.nome);
+          countErroSemantico++;
+        } else {
+          struct arvore *ramo = criaArvore(NULL, $4.noArv, "parseFloat");
+          $$.noArv = criaArvore($1.noArv, ramo, $3.nome);
+        }
+      } else if(strcmp(typeIdent, "char") == 0) {
+        if(strcmp($4.typeVar, "string")){
+          sprintf(warnings[countWarningSemantico], "Linha %d: Declaracao da variavel \"%s\" como \'char\' para \'char*\' sem cast. \n", contaLinha, $1.nome);
+          countWarningSemantico++;
+        } else {
+          struct arvore *ramo = criaArvore(NULL, $4.noArv, "toChar");
+          $$.noArv = criaArvore($1.noArv, ramo, $3.nome);
+        }
+      } else {
+        if(strcmp($4.typeVar, "int")){
+          sprintf(warnings[countWarningSemantico], "Linha %d: Declaracao da variavel \"%s\" como \'char*\' para \'int\' sem cast. \n", contaLinha, $1.nome);
+          countWarningSemantico++;
+        } else if(strcmp($4.typeVar, "float")){
+          sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" do tipo \'char*\' incompativel com o tipo \'float\'. \n", contaLinha, $1.nome);
+          countErroSemantico++;
+        } else {
+          sprintf(warnings[countWarningSemantico], "Linha %d: Declaracao da variavel \"%s\" como \'char*\' para \'char\' sem cast. \n", contaLinha, $1.nome);
+          countWarningSemantico++;
+        }
+      }
+    }
   }
 ; 
 
 receive_value: expressao PV { $$.noArv = $1.noArv; }
 | chama_func { $$.noArv = $1.noArv; }
-;
-
-sinal:  OP_MENOS { $$.noArv = criaArvore(NULL, NULL, "-"); }
-| { $$.noArv = NULL; } 
 ;
 
 printf_statement: PRINTF { adicionaSimbTabela('K', "PRINTF"); } printf_args PV { $$.noArv = criaArvore(NULL, NULL, $1.nome); }
@@ -395,7 +453,15 @@ int main() {
 		for(int i = 0; i < countErroSemantico; i++){
 			printf("\t - %s", errors[i]);
 		}
-	} else {
+	} 
+
+  if(countWarningSemantico > 0){
+    printf("Foram encontrados %d warnings\n", countWarningSemantico);
+		for(int i = 0; i < countWarningSemantico; i++){
+			printf("\t - %s", errors[i]);
+		}
+  }
+  if((countErroSemantico == 0) && (countWarningSemantico == 0)){
 		printf("NENHUM ERRO NA ANALISE SEMANTICA - DEUS EH BOM ");
 	}
 
