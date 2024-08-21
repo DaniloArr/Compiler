@@ -9,7 +9,6 @@ int contaLinha = 1;
 
 
 void yyerror();
-extern void getIdentifier(const char *id);
 %}
 
 %option noyywrap
@@ -21,10 +20,8 @@ letra     [a-zA-Z]
 digito    [0-9]
 integer   [-]?{digito}+
 decimal   [-]?{digito}+(\.{digito}+)
-id        {letra}({letra}|{digito})*
 string	  \"{ascii}*\"
 character \'{ascii}*\'
-tk_point  "*"{id}
 tk_include ^"#include"[ ]*<.+\.h>
 incdec "++"|"--"
 
@@ -78,4 +75,3 @@ void	      	            { strcpy(yylval.noObj.nome,(yytext)); printf("VOID: [ %s
 .                           {  return *yytext; }
 
 %%
-//{letra}({letra}|{digito})*  { getIdentifier(yytext); strcpy(yylval.noObj.nome,(yytext)); printf("IDENTIFIER: [ %s ] \n ", yytext); return IDENTIFIER; }
