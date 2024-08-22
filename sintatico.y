@@ -91,8 +91,8 @@
 
 
 %token <noObj> CHAR PRINTF SCANF FOR INT FLOAT DOUBLE IF ELSE RETURN MAIN VOID OP_MAIS OP_MENOS OP_VEZES OP_DIV OL_AND OL_OR OL_MENOR OL_MENIG OL_MAIOR OL_MAIIG OL_IGUAL OL_DIF INCDEC ALLOC INCLUDE NOTOP LP RP LC RC LB RB PV VIRGULA REFER IDENTIFIER STRING INT_NUM FLOAT_NUM CHARACTER 
-%type  <noObj> program include inicio estrutura tipagem declaracao valor variaveis var_aux array constantes expressao declaravar if_statement else else_opc for_statement inicio_for atribuir printf_statement scanf_statement retorno tail operadores op_logicos printf_args printf_params scanf_args return_param functions function function_head parameters chama_func types_param declara_func
-%type  <noObj1> receive_value
+%type  <noObj> program include inicio estrutura tipagem declaracao valor variaveis array declaravar if_statement else else_opc for_statement inicio_for printf_statement scanf_statement retorno tail operadores op_logicos printf_args printf_params scanf_args return_param functions function function_head parameters types_param declara_func param
+%type  <noObj1> atribuir receive_value expressao constantes chama_func var_aux 
 %start program 
 
 %%
@@ -168,21 +168,8 @@ declaracao: declaravar  { $$.noArv = $1.noArv; }
 | retorno               { $$.noArv = $1.noArv; }
 ;
 
-declaravar: tipagem variaveis valor PV { 
-  $2.noArv = criaArvore(NULL, NULL, $2.nome);
-  $$.noArv = criaArvore($2.noArv, $3.noArv, "declarar");
-}
+declaravar: tipagem valor PV { $$.noArv = $2.noArv; }
 ;
-
-/*declaravar: tipagem sem_mult_type  { multTipagem(); } PV
-| tipagem valor PV { $$.noArv = $2.noArv; }
-;
-
-sem_mult_type: tipagem VIRGULA sem_mult_type 
-| tipagem sem_mult_type
-| tipagem
-;
-*/
 
 tipagem: INT 	{ salvaTipagemVar(); adicionaSimbTabela('K', "INT"); }
 | FLOAT 	{ salvaTipagemVar(); adicionaSimbTabela('K', "FLOAT"); }
@@ -192,28 +179,116 @@ tipagem: INT 	{ salvaTipagemVar(); adicionaSimbTabela('K', "INT"); }
 ;
 
 
-valor: VIRGULA variaveis valor  { $2.noArv = criaArvore(NULL, NULL, $2.nome); $$.noArv = criaArvore($2.noArv, $3.noArv, ""); }
-| ALLOC constantes    { $2.noArv = criaArvore(NULL, NULL, $2.nome); $$.noArv = criaArvore($2.noArv, NULL, $1.nome); }
-| ALLOC var_aux     { $2.noArv = criaArvore(NULL, NULL, $2.nome); $$.noArv = criaArvore($2.noArv, NULL, $1.nome); }
-| { $$.noArv = criaArvore(NULL, NULL, ""); }
+valor: variaveis VIRGULA valor  { $$.noArv = criaArvore($1.noArv, $3.noArv, ""); }
+| variaveis ALLOC constantes  { 
+
+  char *tipag = getTipagem($1.nome);
+  if(strcmp(tipag, $3.typeVar) == 0){
+    $$.noArv = criaArvore($1.noArv, $3.noArv, $2.nome);
+  } else {
+    if(strcmp(tipag, "int") == 0){
+        if(strcmp($3.typeVar, "string") == 0){
+
+          sprintf(warnings[countWarningSemantico], "Linha %d: Declaracao da variavel \"%s\" como \'int\' para \'char*\' sem cast. \n", contaLinha, $1.nome);
+          countWarningSemantico++;
+
+          struct arvore *ramo = criaArvore(NULL, $3.noArv, "semCast");
+          $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+        } else {
+          struct arvore *ramo = criaArvore(NULL, $3.noArv, "parseInt");
+          $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+        }
+      } else if(strcmp(tipag, "float") == 0){
+        if(strcmp($3.typeVar, "string") == 0){
+          sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" do tipo \'float\' incompativel com o tipo \'char*\' da variavel %s. \n", contaLinha, $1.nome, $3.nome);
+          countErroSemantico++;
+
+          struct arvore *ramo = criaArvore(NULL, $3.noArv, "invalid");
+          $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+        } else {
+          struct arvore *ramo = criaArvore(NULL, $3.noArv, "parseFloat");
+          $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+        }
+      } else if(strcmp(tipag, "char") == 0) {
+        if(strcmp($3.typeVar, "string") == 0){
+          sprintf(warnings[countWarningSemantico], "Linha %d: Declaracao da variavel \"%s\" como \'char\' para \'char*\' sem cast. \n", contaLinha, $1.nome);
+          countWarningSemantico++;
+
+          struct arvore *ramo = criaArvore(NULL, $3.noArv, "semCast");
+          $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+        } else {
+          struct arvore *ramo = criaArvore(NULL, $3.noArv, "toChar");
+          $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+        }
+      }
+  }
+  
+}
+  
+| variaveis ALLOC var_aux     { 
+
+  char *tipag = getTipagem($1.nome);
+  if(strcmp(tipag, $3.typeVar) == 0){
+    $$.noArv = criaArvore($1.noArv, $3.noArv, $2.nome);
+  } else {
+    if(strcmp(tipag, "int") == 0){
+        if(strcmp($3.typeVar, "string") == 0){
+
+          sprintf(warnings[countWarningSemantico], "Linha %d: Declaracao da variavel \"%s\" como \'int\' para \'char*\' sem cast. \n", contaLinha, $1.nome);
+          countWarningSemantico++;
+
+          struct arvore *ramo = criaArvore(NULL, $3.noArv, "semCast");
+          $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+        } else {
+          struct arvore *ramo = criaArvore(NULL, $3.noArv, "parseInt");
+          $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+        }
+      } else if(strcmp(tipag, "float") == 0){
+        if(strcmp($3.typeVar, "string") == 0){
+          sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" do tipo \'float\' incompativel com o tipo \'char*\' da variavel %s. \n", contaLinha, $1.nome, $3.nome);
+          countErroSemantico++;
+
+          struct arvore *ramo = criaArvore(NULL, $3.noArv, "invalid");
+          $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+        } else {
+          struct arvore *ramo = criaArvore(NULL, $3.noArv, "parseFloat");
+          $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+        }
+      } else if(strcmp(tipag, "char") == 0) {
+        if(strcmp($3.typeVar, "string") == 0){
+          sprintf(warnings[countWarningSemantico], "Linha %d: Declaracao da variavel \"%s\" como \'char\' para \'char*\' sem cast. \n", contaLinha, $1.nome);
+          countWarningSemantico++;
+
+          struct arvore *ramo = criaArvore(NULL, $3.noArv, "semCast");
+          $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+        } else {
+          struct arvore *ramo = criaArvore(NULL, $3.noArv, "toChar");
+          $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+        }
+      }
+  }
+}
+| variaveis { $$.noArv = $1.noArv; }
 ;
 
 variaveis: IDENTIFIER  array   { 
-  //verificaPalavraReservada($1.nome); 
   getIdentifier('A', $1.nome); 
   $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 | IDENTIFIER { 
-  //verificaPalavraReservada($1.nome); 
   getIdentifier('V', $1.nome); 
   $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 ;
 
 var_aux: IDENTIFIER  array   { 
-  //verificaPalavraReservada($1.nome); 
+  strcpy($$.nome, $1.nome);
+  char *tipag = getTipagem($1.nome);
+  sprintf($$.typeVar, tipag);
   verificaVarDeclarada($1.nome); 
   $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 | IDENTIFIER   { 
-  //verificaPalavraReservada($1.nome); 
+  strcpy($$.nome, $1.nome);
+  char *tipag = getTipagem($1.nome);
+  sprintf($$.typeVar, tipag);
   verificaVarDeclarada($1.nome); 
   $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 ;
@@ -224,10 +299,10 @@ array: array LB INT_NUM RB
 | LB IDENTIFIER RB  { verificaVarDeclarada($2.nome);} 
 ;
 
-constantes: INT_NUM { salvaTipagemConst("int"); adicionaSimbTabela('C', "INT_NUM");   $$.noArv = criaArvore(NULL, NULL, $1.nome); }
-| FLOAT_NUM         { salvaTipagemConst("float"); adicionaSimbTabela('C', "FLOAT_NUM"); $$.noArv = criaArvore(NULL, NULL, $1.nome); }
-| STRING            { salvaTipagemConst("string"); adicionaSimbTabela('C', "STRING");    $$.noArv = criaArvore(NULL, NULL, $1.nome); }
-| CHARACTER         { salvaTipagemConst("char"); adicionaSimbTabela('C', "CHARACTER"); $$.noArv = criaArvore(NULL, NULL, $1.nome); }
+constantes: INT_NUM { salvaTipagemConst("int"); sprintf($$.typeVar, "int"); adicionaSimbTabela('C', "INT_NUM");   $$.noArv = criaArvore(NULL, NULL, $1.nome); }
+| FLOAT_NUM         { salvaTipagemConst("float"); sprintf($$.typeVar, "float"); adicionaSimbTabela('C', "FLOAT_NUM"); $$.noArv = criaArvore(NULL, NULL, $1.nome); }
+| STRING            { salvaTipagemConst("string"); sprintf($$.typeVar, "string"); adicionaSimbTabela('C', "STRING");    $$.noArv = criaArvore(NULL, NULL, $1.nome); }
+| CHARACTER         { salvaTipagemConst("char"); sprintf($$.typeVar, "char"); adicionaSimbTabela('C', "CHARACTER"); $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 ;
 
 if_statement: IF { adicionaSimbTabela('K', "IF"); } LP expressao RP tail else {
@@ -257,12 +332,84 @@ inicio_for: IDENTIFIER ALLOC constantes  { $1.noArv = criaArvore(NULL, NULL, $1.
 tail: LC estrutura RC { $$.noArv = $2.noArv; }
 ;
 
-expressao: expressao operadores expressao { $$.noArv = criaArvore($1.noArv, $3.noArv, $2.nome); }
+/* ______________ */
+
+expressao: expressao operadores expressao { 
+  if(strcmp($1.typeVar, $3.typeVar) == 0){
+    sprintf($$.typeVar, $1.typeVar);
+    $$.noArv = criaArvore($1.noArv, $3.noArv, $2.nome);  
+  } else {
+    if(strcmp($1.typeVar, "int") == 0){
+      if(strcmp($3.typeVar, "float") == 0){
+        struct arvore *ramo = criaArvore(NULL, $1.noArv, "opIntFloat");
+        sprintf($$.typeVar, $3.typeVar);
+        $$.noArv = criaArvore(ramo, $3.noArv, $2.nome);
+
+      } else if(strcmp($3.typeVar, "char") == 0){
+        struct arvore *ramo = criaArvore(NULL, $1.noArv, "opIntChar");
+        sprintf($$.typeVar, $1.typeVar);
+        $$.noArv = criaArvore(ramo, $3.noArv, $2.nome);
+
+      } else {
+        struct arvore *ramo = criaArvore(NULL, $1.noArv, "opIntChar*");
+        sprintf($$.typeVar, $3.typeVar);
+        $$.noArv = criaArvore(ramo, $3.noArv, $2.nome);
+      }
+    } else if(strcmp($1.typeVar, "float") == 0){
+      if(strcmp($3.typeVar, "int")== 0){
+        struct arvore *ramo = criaArvore(NULL, $3.noArv, "opFloatInt");
+        sprintf($$.typeVar, $1.typeVar);
+        $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+
+      } else if(strcmp($3.typeVar, "char")){
+        struct arvore *ramo = criaArvore(NULL, $3.noArv, "opFloatChar");
+        sprintf($$.typeVar, $1.typeVar);
+        $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+
+      } else {
+        sprintf(errors[countErroSemantico], "Linha %d: Operacao invalida entre \'float\' e \'char*\'. \n", contaLinha, $1.nome);
+        countErroSemantico++;
+
+        struct arvore *ramo = criaArvore(NULL, $3.noArv, "invalid");
+        sprintf($$.typeVar, $3.typeVar);
+        $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+      }
+    } else if(strcmp($1.typeVar, "char") == 0){
+      if(strcmp($3.typeVar, "float") == 0){
+        struct arvore *ramo = criaArvore(NULL, $3.noArv, "opCharFloat");
+        sprintf($$.typeVar, $1.typeVar);
+        $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+      } else if(strcmp($3.typeVar, "int") == 0){
+        struct arvore *ramo = criaArvore(NULL, $3.noArv, "opCharInt");
+        sprintf($$.typeVar, $1.typeVar);
+        $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+      } else {
+        struct arvore *ramo = criaArvore(NULL, $3.noArv, "opCharChar*");
+        sprintf($$.typeVar, $3.typeVar);
+        $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+      }
+    } else {
+      if(strcmp($3.typeVar, "float") == 0){
+        struct arvore *ramo = criaArvore(NULL, $3.noArv, "opChar*Float");
+        sprintf($$.typeVar, $1.typeVar);
+        $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+      } else if(strcmp($3.typeVar, "int") == 0){
+        struct arvore *ramo = criaArvore(NULL, $3.noArv, "opChar*Int");
+        sprintf($$.typeVar, $3.typeVar);
+        $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+      } else {
+        struct arvore *ramo = criaArvore(NULL, $3.noArv, "opChar*Char");
+        sprintf($$.typeVar, $1.typeVar);
+        $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
+      }
+    }
+  }
+}
 | expressao op_logicos expressao          { $$.noArv = criaArvore($1.noArv, $3.noArv, $2.nome); }
 | expressao INCDEC      { $2.noArv = criaArvore(NULL, NULL, $2.nome); $$.noArv = criaArvore($1.noArv, $2.noArv, "INCDEC"); }
 | NOTOP expressao       { $1.noArv = criaArvore(NULL, NULL, $1.nome); $$.noArv = criaArvore($1.noArv, $2.noArv, "DIFF"); }
-| var_aux               { $$.noArv = $1.noArv; }
-| constantes            { $$.noArv = $1.noArv; }
+| var_aux               { strcpy($$.nome, $1.nome); sprintf($$.typeVar, $1.typeVar); $$.noArv = $1.noArv; }
+| constantes            { strcpy($$.nome, $1.nome); sprintf($$.typeVar, $1.typeVar); $$.noArv = $1.noArv; }
 | chama_func            { $$.noArv = $1.noArv; }
 ;
 
@@ -287,54 +434,84 @@ atribuir: IDENTIFIER array { verificaVarDeclarada($1.nome); } ALLOC receive_valu
     char *typeIdent = getTipagem($1.nome);
     if(strcmp(typeIdent,$5.typeVar) == 0){
       $$.noArv = criaArvore($1.noArv, $5.noArv, $4.nome);
-    } 
-    
+    } else {
+      if(strcmp(typeIdent, "int") == 0){
+        if(strcmp($5.typeVar, "string")== 0){
+
+          sprintf(warnings[countWarningSemantico], "Linha %d: Declaracao da variavel \"%s\" como \'int\' para \'char*\' sem cast. \n", contaLinha, $1.nome);
+          countWarningSemantico++;
+
+          struct arvore *ramo = criaArvore(NULL, $5.noArv, "semCast");
+          $$.noArv = criaArvore($1.noArv, ramo, $4.nome);
+        } else {
+          struct arvore *ramo = criaArvore(NULL, $5.noArv, "parseInt");
+          $$.noArv = criaArvore($1.noArv, ramo, $4.nome);
+        }
+      } else if(strcmp(typeIdent, "float") == 0){
+        if(strcmp($5.typeVar, "string") == 0){
+          sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" do tipo \'float\' incompativel com o tipo \'char*\'. \n", contaLinha, $1.nome);
+          countErroSemantico++;
+
+          struct arvore *ramo = criaArvore(NULL, $5.noArv, "invalid");
+          $$.noArv = criaArvore($1.noArv, ramo, $4.nome);
+        } else {
+          struct arvore *ramo = criaArvore(NULL, $5.noArv, "parseFloat");
+          $$.noArv = criaArvore($1.noArv, ramo, $4.nome);
+        }
+      } else if(strcmp(typeIdent, "char") == 0){  
+        if(strcmp($5.typeVar, "string") == 0){
+          sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" do tipo \'float\' incompativel com o tipo \'char*\'. \n", contaLinha, $1.nome);
+          countErroSemantico++;
+
+          struct arvore *ramo = criaArvore(NULL, $5.noArv, "invalid");
+          $$.noArv = criaArvore($1.noArv, ramo, $4.nome);
+        } else {
+          struct arvore *ramo = criaArvore(NULL, $5.noArv, "parseFloat");
+          $$.noArv = criaArvore($1.noArv, ramo, $4.nome);
+        }
+      }
+    }
   }
 | IDENTIFIER { verificaVarDeclarada($1.nome); } ALLOC receive_value {
     $1.noArv = criaArvore(NULL, NULL, $1.nome);
     char *typeIdent = getTipagem($1.nome);
-    int numInteiro;
-    float numDecimal;
 
-     if(strcmp(typeIdent,$4.typeVar) == 0){
+    if(strcmp(typeIdent,$4.typeVar) == 0){
       $$.noArv = criaArvore($1.noArv, $4.noArv, $3.nome);
     } else {
       if(strcmp(typeIdent, "int") == 0){
-        if(strcmp($4.typeVar, "string")){
-          //numDecimal = strtod($4.noArv,NULL);
-          //numInteiro = (int) numDecimal; contaLinha
-          sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" do tipo \'int\' incompativel com o tipo \'char*\'. \n", contaLinha, $1.nome);
-          countErroSemantico++;
+        if(strcmp($4.typeVar, "string") == 0){
+
+          sprintf(warnings[countWarningSemantico], "Linha %d: Declaracao da variavel \"%s\" como \'int\' para \'char*\' sem cast. \n", contaLinha, $1.nome);
+          countWarningSemantico++;
+
+          struct arvore *ramo = criaArvore(NULL, $4.noArv, "invalid");
+          $$.noArv = criaArvore($1.noArv, ramo, $3.nome);
         } else {
           struct arvore *ramo = criaArvore(NULL, $4.noArv, "parseInt");
           $$.noArv = criaArvore($1.noArv, ramo, $3.nome);
         }
       } else if(strcmp(typeIdent, "float") == 0){
-        if(strcmp($4.typeVar, "string")){
+        if(strcmp($4.typeVar, "string") == 0){
           sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" do tipo \'float\' incompativel com o tipo \'char*\'. \n", contaLinha, $1.nome);
           countErroSemantico++;
+
+          struct arvore *ramo = criaArvore(NULL, $4.noArv, "invalid");
+          $$.noArv = criaArvore($1.noArv, ramo, $3.nome);
         } else {
           struct arvore *ramo = criaArvore(NULL, $4.noArv, "parseFloat");
           $$.noArv = criaArvore($1.noArv, ramo, $3.nome);
         }
       } else if(strcmp(typeIdent, "char") == 0) {
-        if(strcmp($4.typeVar, "string")){
+        if(strcmp($4.typeVar, "string") == 0){
           sprintf(warnings[countWarningSemantico], "Linha %d: Declaracao da variavel \"%s\" como \'char\' para \'char*\' sem cast. \n", contaLinha, $1.nome);
           countWarningSemantico++;
+
+          struct arvore *ramo = criaArvore(NULL, $4.noArv, "semCast");
+          $$.noArv = criaArvore($1.noArv, ramo, $3.nome);
         } else {
           struct arvore *ramo = criaArvore(NULL, $4.noArv, "toChar");
           $$.noArv = criaArvore($1.noArv, ramo, $3.nome);
-        }
-      } else {
-        if(strcmp($4.typeVar, "int")){
-          sprintf(warnings[countWarningSemantico], "Linha %d: Declaracao da variavel \"%s\" como \'char*\' para \'int\' sem cast. \n", contaLinha, $1.nome);
-          countWarningSemantico++;
-        } else if(strcmp($4.typeVar, "float")){
-          sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" do tipo \'char*\' incompativel com o tipo \'float\'. \n", contaLinha, $1.nome);
-          countErroSemantico++;
-        } else {
-          sprintf(warnings[countWarningSemantico], "Linha %d: Declaracao da variavel \"%s\" como \'char*\' para \'char\' sem cast. \n", contaLinha, $1.nome);
-          countWarningSemantico++;
         }
       }
     }
@@ -353,8 +530,12 @@ printf_args: LP var_aux RP
 | LP STRING VIRGULA printf_params RP  
 ;
 
-printf_params:  expressao 
-| expressao VIRGULA printf_params 
+printf_params:  param 
+| param VIRGULA printf_params 
+;
+
+param: constantes {  $$.noArv = $1.noArv;  }
+| var_aux  {  $$.noArv = $1.noArv; }
 ;
 
 scanf_statement:  SCANF { adicionaSimbTabela('K', "SCANF"); }  LP STRING VIRGULA scanf_args RP PV { $$.noArv = criaArvore(NULL, NULL, $1.nome); }
@@ -373,6 +554,10 @@ return_param: constantes {  $$.noArv = $1.noArv;  }
 ;
 
 chama_func: IDENTIFIER { verificaVarDeclarada($1.nome); } LP types_param RP PV { 
+    strcpy($$.nome, $1.nome);
+    char *tipag = getTipagem($1.nome); 
+    sprintf($$.typeVar, tipag); 
+    
     $1.noArv = criaArvore(NULL, NULL, $1.nome); 
     $$.noArv = criaArvore($1.noArv, $4.noArv, "call_func"); 
   }
@@ -449,16 +634,16 @@ int main() {
   printf("VERIFICANDO SEMANTICA \n\n");
 
   if(countErroSemantico > 0) {
-		printf("Foram encontrados %d erros\n", countErroSemantico);
+		printf("Foram encontrados %d erros: \n", countErroSemantico);
 		for(int i = 0; i < countErroSemantico; i++){
-			printf("\t - %s", errors[i]);
+			printf("\t -> %s", errors[i]);
 		}
 	} 
 
   if(countWarningSemantico > 0){
-    printf("Foram encontrados %d warnings\n", countWarningSemantico);
+    printf("Foram encontrados %d warnings: \n", countWarningSemantico);
 		for(int i = 0; i < countWarningSemantico; i++){
-			printf("\t - %s", errors[i]);
+			printf("\t -> %s", warnings[i]);
 		}
   }
   if((countErroSemantico == 0) && (countWarningSemantico == 0)){
