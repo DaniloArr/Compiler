@@ -20,9 +20,9 @@
     void salvaTipagemConst(char *);
     
     void verificaVarDeclarada(char *);
-    int verificaPalavraReservada(char *);
     void multiplaDeclaracao(char *);
     char *getTipagem(char *);
+    void printErrorSemantico();
     int countErroSemantico = 0;
     int countWarningSemantico = 0;
     char errors[10][100];
@@ -202,6 +202,7 @@ valor: variaveis VIRGULA valor  { $$.noArv = criaArvore($1.noArv, $3.noArv, "");
         if(strcmp($3.typeVar, "string") == 0){
           sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" do tipo \'float\' incompativel com o tipo \'char*\' da variavel %s. \n", contaLinha, $1.nome, $3.nome);
           countErroSemantico++;
+          printErrorSemantico();
 
           struct arvore *ramo = criaArvore(NULL, $3.noArv, "invalid");
           $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
@@ -247,7 +248,7 @@ valor: variaveis VIRGULA valor  { $$.noArv = criaArvore($1.noArv, $3.noArv, "");
         if(strcmp($3.typeVar, "string") == 0){
           sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" do tipo \'float\' incompativel com o tipo \'char*\' da variavel %s. \n", contaLinha, $1.nome, $3.nome);
           countErroSemantico++;
-
+          printErrorSemantico();
           struct arvore *ramo = criaArvore(NULL, $3.noArv, "invalid");
           $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
         } else {
@@ -280,16 +281,16 @@ variaveis: IDENTIFIER  array   {
 ;
 
 var_aux: IDENTIFIER  array   { 
+  verificaVarDeclarada($1.nome); 
   strcpy($$.nome, $1.nome);
   char *tipag = getTipagem($1.nome);
   sprintf($$.typeVar, tipag);
-  verificaVarDeclarada($1.nome); 
   $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 | IDENTIFIER   { 
+  verificaVarDeclarada($1.nome); 
   strcpy($$.nome, $1.nome);
   char *tipag = getTipagem($1.nome);
   sprintf($$.typeVar, tipag);
-  verificaVarDeclarada($1.nome); 
   $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 ;
 
@@ -369,7 +370,7 @@ expressao: expressao operadores expressao {
       } else {
         sprintf(errors[countErroSemantico], "Linha %d: Operacao invalida entre \'float\' e \'char*\'. \n", contaLinha, $1.nome);
         countErroSemantico++;
-
+        printErrorSemantico();
         struct arvore *ramo = criaArvore(NULL, $3.noArv, "invalid");
         sprintf($$.typeVar, $3.typeVar);
         $$.noArv = criaArvore($1.noArv, ramo, $2.nome);
@@ -451,7 +452,7 @@ atribuir: IDENTIFIER array { verificaVarDeclarada($1.nome); } ALLOC receive_valu
         if(strcmp($5.typeVar, "string") == 0){
           sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" do tipo \'float\' incompativel com o tipo \'char*\'. \n", contaLinha, $1.nome);
           countErroSemantico++;
-
+          printErrorSemantico();
           struct arvore *ramo = criaArvore(NULL, $5.noArv, "invalid");
           $$.noArv = criaArvore($1.noArv, ramo, $4.nome);
         } else {
@@ -462,7 +463,7 @@ atribuir: IDENTIFIER array { verificaVarDeclarada($1.nome); } ALLOC receive_valu
         if(strcmp($5.typeVar, "string") == 0){
           sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" do tipo \'float\' incompativel com o tipo \'char*\'. \n", contaLinha, $1.nome);
           countErroSemantico++;
-
+          printErrorSemantico();
           struct arvore *ramo = criaArvore(NULL, $5.noArv, "invalid");
           $$.noArv = criaArvore($1.noArv, ramo, $4.nome);
         } else {
@@ -495,6 +496,7 @@ atribuir: IDENTIFIER array { verificaVarDeclarada($1.nome); } ALLOC receive_valu
         if(strcmp($4.typeVar, "string") == 0){
           sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" do tipo \'float\' incompativel com o tipo \'char*\'. \n", contaLinha, $1.nome);
           countErroSemantico++;
+          printErrorSemantico();
 
           struct arvore *ramo = criaArvore(NULL, $4.noArv, "invalid");
           $$.noArv = criaArvore($1.noArv, ramo, $3.nome);
@@ -633,13 +635,6 @@ int main() {
   printf("_______________________________________\n\n");
   printf("VERIFICANDO SEMANTICA \n\n");
 
-  if(countErroSemantico > 0) {
-		printf("Foram encontrados %d erros: \n", countErroSemantico);
-		for(int i = 0; i < countErroSemantico; i++){
-			printf("\t -> %s", errors[i]);
-		}
-	} 
-
   if(countWarningSemantico > 0){
     printf("Foram encontrados %d warnings: \n", countWarningSemantico);
 		for(int i = 0; i < countWarningSemantico; i++){
@@ -728,10 +723,6 @@ void getIdentifier(char tipoTkn, const char *id) {
   char *idVar;
   idVar = malloc(strlen(id) + 1);
   strcpy(idVar, id);
-
-  if (verificaPalavraReservada(idVar) == 1){
-    return;
-  }
   
   tabela *tabSimb;
   
@@ -824,11 +815,12 @@ void verificaVarDeclarada(char *id){
   }
   if(varDeclarada == 0) {        
       sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" nao declarada \n", yylineno, id);  
-      countErroSemantico++;    
+      countErroSemantico++;  
+      printErrorSemantico();  
   }
 }
 
-int verificaPalavraReservada(char *id){
+/*int verificaPalavraReservada(char *id){
   extern int yylineno; 
   for(int i=0; i<15; i++){
     if(!strcmp(arrayPalavrasReservadas[i], strdup(id))){
@@ -838,12 +830,13 @@ int verificaPalavraReservada(char *id){
     }
   }
   return 0;
-}
+}*/
 
 void multiplaDeclaracao(char *id){
   extern int yylineno; 
   sprintf(errors[countErroSemantico], "Linha %d: Variavel \"%s\" ja declarada anteriormente\n", yylineno, id);
   countErroSemantico++;
+  printErrorSemantico();
 }
 
 char *getTipagem(char *var){
@@ -862,7 +855,16 @@ void verificaTipagemRetorno(char *valor){
 	char *return_datatype = getTipagem(valor);
 }
 
-/*fazer um código semantico para verificar se o valor que ela tá recebendo é do mesmo tipo*/
+
+void printErrorSemantico(){
+  printf("_______________________________________\n\n");
+  printf("ERRO SEMANTICO: \n");
+  for(int i = 0; i < countErroSemantico; i++){
+    printf(" -> %s", errors[i]);
+  }
+  printf("\n_______________________________________\n\n");
+  exit(1);
+}
 
 
 
@@ -870,7 +872,8 @@ void yyerror(const char *s)
 {
     extern int yylineno;    // Linha atual do código sendo analisado
     extern char *yytext;    // Último token lido pelo analisador léxico
-
+    printf("_______________________________________\n\n");
     fprintf(stderr, " -> Erro na linha %d; ** %s ** <- \n", yylineno, yytext);
+    printf("\n_______________________________________\n\n");
     exit(1);
 }
