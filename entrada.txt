@@ -5,7 +5,7 @@ int soma(int);
 int main(){
 	int tamanhoArray, valorSoma, i, k, lista[tamanhoArray];
 	char arq[15];
-	float numero = valorSoma;
+	float numero = 15.5;
 
 	printf("Digite o tamanho do array: ");
 	scanf("%d", &tamanhoArray);

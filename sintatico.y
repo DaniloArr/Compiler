@@ -15,7 +15,7 @@
 
     int buscaSimbRepetido(char *);
     void adicionaSimbTabela(char, const char *); 
-    void getIdentifier(char, const char *); 
+    void setIdentifier(char, const char *); 
     void salvaTipagemVar();
     void salvaTipagemConst(char *);
     
@@ -150,8 +150,8 @@ param_func: parameters
 | 
 ;
 
-parameters: tipagem IDENTIFIER VIRGULA parameters { getIdentifier('V', $2.nome); }
-| tipagem IDENTIFIER { getIdentifier('V', $2.nome); }
+parameters: tipagem IDENTIFIER VIRGULA parameters { setIdentifier('V', $2.nome); }
+| tipagem IDENTIFIER { setIdentifier('V', $2.nome); }
 ;
 
 estrutura: declaracao  { $$.noArv = $1.noArv; }
@@ -273,10 +273,10 @@ valor: variaveis VIRGULA valor  { $$.noArv = criaArvore($1.noArv, $3.noArv, "");
 ;
 
 variaveis: IDENTIFIER  array   { 
-  getIdentifier('A', $1.nome); 
+  setIdentifier('A', $1.nome); 
   $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 | IDENTIFIER { 
-  getIdentifier('V', $1.nome); 
+  setIdentifier('V', $1.nome); 
   $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 ;
 
@@ -551,7 +551,7 @@ retorno: RETURN { adicionaSimbTabela('K', "RETURN"); } return_param PV { $1.noAr
 ;
 
 return_param: constantes {  $$.noArv = $1.noArv;  }
-| IDENTIFIER  {  $$.noArv = criaArvore(NULL, NULL, $1.nome); verificaVarDeclarada($1.nome); }
+| IDENTIFIER  {  verificaVarDeclarada($1.nome); $$.noArv = criaArvore(NULL, NULL, $1.nome);  }
 | /*vazio*/   {  $$.noArv = NULL;  }
 ;
 
@@ -565,7 +565,7 @@ chama_func: IDENTIFIER { verificaVarDeclarada($1.nome); } LP types_param RP PV {
   }
 ;
 
-types_param: IDENTIFIER { $$.noArv = criaArvore(NULL, NULL, $1.nome); verificaVarDeclarada($1.nome); }
+types_param: IDENTIFIER { verificaVarDeclarada($1.nome); $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 | STRING                { $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 | CHARACTER             { $$.noArv = criaArvore(NULL, NULL, $1.nome); }
 |                       { $$.noArv = NULL; }
@@ -609,23 +609,6 @@ int main() {
       tabSimb = tabSimb->next;
   }
 
-	/*
-    while(tabSimb != NULL){
-    printf("%s - %s - %s -  %d\n", 
-      tabSimb->simbolo, 
-      tabSimb->token, 
-      tabSimb->tipoToken, 
-      tabSimb->linha
-    );
-    tabSimb = tabSimb->next;
-  }
-    
-
-    for(i=0;i<count;i++) {
-		free(tabelaSimbolos[i].simbolo);
-		free(tabelaSimbolos[i].token);
-    free(tabelaSimbolos[i].tipoToken);
-	}*/
 	printf("\n\n");
   printf("_______________________________________\n\n");
   printf("IMPRIMINDO ARVORE \n\n");
@@ -718,7 +701,7 @@ void adicionaSimbTabela(char tipoTkn, const char *tkn) {
 
 }
 
-void getIdentifier(char tipoTkn, const char *id) {
+void setIdentifier(char tipoTkn, const char *id) {
   
   char *idVar;
   idVar = malloc(strlen(id) + 1);
@@ -820,17 +803,7 @@ void verificaVarDeclarada(char *id){
   }
 }
 
-/*int verificaPalavraReservada(char *id){
-  extern int yylineno; 
-  for(int i=0; i<15; i++){
-    if(!strcmp(arrayPalavrasReservadas[i], strdup(id))){
-        sprintf(errors[countErroSemantico], "Linha %d: Variavel utilizada: \"%s\" estah usando um termo reservado\n", yylineno, id);
-        countErroSemantico++;
-      return 1;
-    }
-  }
-  return 0;
-}*/
+
 
 void multiplaDeclaracao(char *id){
   extern int yylineno; 
